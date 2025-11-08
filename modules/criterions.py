@@ -14,8 +14,8 @@ class MSELoss(Criterion):
         :return: loss value
         """
         assert input.shape == target.shape, 'input and target shapes not matching'
-        # replace with your code ｀、ヽ｀、ヽ(ノ＞＜)ノ ヽ｀☂｀、ヽ
-        return super().compute_output(input, target)
+        loss = np.mean((input - target) ** 2)
+        return np.array(loss, dtype=input.dtype)
 
     def compute_grad_input(self, input: np.ndarray, target: np.ndarray) -> np.ndarray:
         """
@@ -24,8 +24,8 @@ class MSELoss(Criterion):
         :return: array of size (batch_size, *)
         """
         assert input.shape == target.shape, 'input and target shapes not matching'
-        # replace with your code ｀、ヽ｀、ヽ(ノ＞＜)ノ ヽ｀☂｀、ヽ
-        return super().compute_grad_input(input, target)
+        grad_input = 2.0 * (input - target) / input.size
+        return grad_input
 
 
 class CrossEntropyLoss(Criterion):
@@ -43,8 +43,16 @@ class CrossEntropyLoss(Criterion):
         :param target: labels array of size (batch_size, )
         :return: loss value
         """
-        # replace with your code ｀、ヽ｀、ヽ(ノ＞＜)ノ ヽ｀☂｀、ヽ
-        return super().compute_output(input, target)
+        batch_size, num_classes = input.shape
+        log_probs = self.log_softmax(input)
+        smoothing = self.label_smoothing
+        if smoothing > 0:
+            true_dist = np.full_like(log_probs, smoothing / num_classes)
+            true_dist[np.arange(batch_size), target] += 1.0 - smoothing
+            loss = -np.sum(true_dist * log_probs) / batch_size
+        else:
+            loss = -np.mean(log_probs[np.arange(batch_size), target])
+        return np.array(loss, dtype=input.dtype)
 
     def compute_grad_input(self, input: np.ndarray, target: np.ndarray) -> np.ndarray:
         """
@@ -52,5 +60,18 @@ class CrossEntropyLoss(Criterion):
         :param target: labels array of size (batch_size, )
         :return: array of size (batch_size, num_classes)
         """
-        # replace with your code ｀、ヽ｀、ヽ(ノ＞＜)ノ ヽ｀☂｀、ヽ
-        return super().compute_grad_input(input, target)
+        batch_size, num_classes = input.shape
+        log_probs = self.log_softmax.output
+        if log_probs is None:
+            log_probs = self.log_softmax(input)
+        probs = np.exp(log_probs)
+        smoothing = self.label_smoothing
+        if smoothing > 0:
+            true_dist = np.full_like(probs, smoothing / num_classes)
+            true_dist[np.arange(batch_size), target] += 1.0 - smoothing
+        else:
+            true_dist = np.zeros_like(probs)
+            true_dist[np.arange(batch_size), target] = 1.0
+
+        grad_input = (probs - true_dist) / batch_size
+        return grad_input
